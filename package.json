@@ -34,9 +34,9 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "deploy": "npm run build && firebase deploy --only hosting",
-    "stgdeploy": "npm run build && firebase hosting:channel:deploy stg",
-    "countstgdeploy": "npm run build && firebase hosting:channel:deploy countstg"
+    "deploy": "yarn build && firebase deploy --only hosting",
+    "stgdeploy": "yarn build && firebase hosting:channel:deploy stg",
+    "countstgdeploy": "yarn build && firebase hosting:channel:deploy countstg"
   },
   "eslintConfig": {
     "extends": [
