@@ -134,15 +134,16 @@ transaction(amount: UFix64, toAddresses: [Address]) {
         let vaultRef = signer.borrow<&FlowToken.Vault>(from: /storage/flowTokenVault)
 			?? panic("Could not borrow reference to the owner's Vault!")
 
-        var i: UInt64 = 0
+        var i = 0
         while i < toAddresses.length {
-            let sentVault <- vaultRef.withdraw(amount: amount)
             let receiverRef =  getAccount(toAddresses[i])
                 .getCapability(/public/flowTokenReceiver)
                 .borrow<&{FungibleToken.Receiver}>()
-                ?? panic("Could not borrow receiver reference to the recipient's Vault")
-            receiverRef.deposit(from: <-sentVault)
-            i = i + UInt64(1)
+            if receiverRef != nil {
+                let sentVault <- vaultRef.withdraw(amount: amount)
+                receiverRef!.deposit(from: <-sentVault)
+            }
+            i = i + 1 as Int
         }
     }
 }`,
