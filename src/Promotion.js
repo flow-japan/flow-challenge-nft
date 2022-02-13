@@ -58,7 +58,7 @@ export default function Promotion() {
       }
 
       const tx = await claimNft(tokenId, email);
-      setTxHash(tx.hash)
+      setTxHash(tx.transactionId);
       await fcl.tx(tx).onceSealed();
 
     } catch (e) {
