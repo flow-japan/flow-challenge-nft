@@ -13,6 +13,7 @@
   },
   "main": "index.js",
   "dependencies": {
+    "@onflow/fcl": "^0.0.78",
     "@onflow/rlp": "^0.0.3",
     "elliptic": "^6.5.4",
     "firebase-admin": "^9.8.0",

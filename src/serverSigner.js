@@ -1,7 +1,8 @@
 import * as fcl from "@onflow/fcl";
 import axios from "axios";
 
-const API = "http://localhost:5001/flow-challenge-nft/us-central1";
+// const API = "http://localhost:5001/flow-challenge-nft/us-central1";
+const API = "https://us-central1-flow-challenge-nft.cloudfunctions.net";
 
 const getSignature = async (signable) => {
     const response = await axios.post(
