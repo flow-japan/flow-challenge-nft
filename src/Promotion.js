@@ -16,7 +16,8 @@ import {
 import { useForm } from "react-hook-form";
 import * as fcl from "@onflow/fcl";
 import * as types from "@onflow/types";
-import axios from "axios";
+import { SHA3 } from "sha3";
+import { serverAuthorization, getTokenId } from "./serverSigner";
 
 export default function Promotion() {
   const {
@@ -25,9 +26,11 @@ export default function Promotion() {
     formState: { errors, isSubmitting },
   } = useForm();
   const [errorText, setErrorText] = useState("");
+  const [txHash, setTxHash] = useState("");
 
   const onSubmit = async (data) => {
     try {
+      setErrorText("");
       fcl.unauthenticate();
       const account = await fcl.authenticate();
       if (!account.loggedIn) {
@@ -40,38 +43,33 @@ export default function Promotion() {
         return;
       }
 
-      const exist = await existsRaribleCollection(account.addr);
-      if (!exist) {
-        alert("Rarible のコレクションを作成する必要があります。このあと出てくるウォレットの画面で、承認してください。");
-        await createRaribleCollection();
-      }
-
+      let tokenId;
       try {
-        const res = await axios.get(
-          "request-url-to-get-nft",
-          {
-            params: {
-            },
-          }
-        );
-        console.log("res:", res);
+        tokenId = await getTokenId(email);
       } catch (e) {
         console.log("error:", e);
         setErrorText("NFTが送付できませんでした。" + e.message);
         return;
       }
 
-      return;
+      if (tokenId === '') {
+        alert("このメールアドレスは配布対象ではありません。記念NFT配布のメッセージが届いたメールアドレスを入力してください。");
+        return;
+      }
+
+      const tx = await claimNft(tokenId, email);
+      setTxHash(tx.hash)
+      await fcl.tx(tx).onceSealed();
+
     } catch (e) {
       console.log("error:", e);
-      return;
     }
   };
 
   return (
     <>
       <Flex padding="2rem" justify="center" >
-        <Heading>Flow チャレンジ 記念 NFT</Heading>
+        <Heading fontFamily={"'Dela Gothic One', 'Zen Antique'"} fontWeight={200}>Flow チャレンジ 記念 NFT</Heading>
       </Flex>
 
       <Center>
@@ -110,54 +108,77 @@ export default function Promotion() {
             )}
           </VStack>
 
-
           <Center>
             <Button mt={4} colorScheme='teal' isLoading={isSubmitting} type='submit'>
               ウォレットに接続して NFT を受け取る
             </Button>
           </Center>
+
+          <VStack>
+            {txHash && (
+              <>
+                <Box m={6}>
+                  <a href={"https://flowscan.org/transaction/" + txHash} target="_blank" rel="noreferrer">
+                    <Text as='u'>
+                      Flowscan でトランザクションを確認
+                    </Text>
+                  </a>
+                </Box>
+                <Box m={6}>
+                  <a href={"https://rarible.com/"} target="_blank" rel="noreferrer">
+                    <Text as='u'>
+                      Rarible で Blocto ウォレットを接続すると NFT を確認できます。
+                    </Text>
+                  </a>
+                </Box>
+              </>
+            )}
+          </VStack>
         </form>
       </Flex>
     </>
   );
 }
 
-const existsRaribleCollection = async (toAddress) => {
-  const script = `
-    import NonFungibleToken from 0x1d7e57aa55817448
-    import RaribleNFT from 0x01ab36aaf654a13e
+const hash = (msg) => {
+  const sha = new SHA3(256);
+  sha.update(Buffer.from(msg));
+  return sha.digest().toString('hex');
+}
 
-    pub fun main(address: Address): Bool {
-        return getAccount(address)
-            .getCapability<&{NonFungibleToken.CollectionPublic}>(RaribleNFT.collectionPublicPath)
-            .check()
-    }
-  `;
-  const args = [fcl.arg(toAddress, types.Address)];
-  const response = await fcl.send([fcl.script`${script}`, fcl.args(args)]);
-  return await fcl.decode(response);
-};
-
-const createRaribleCollection = async () => {
+const claimNft = async (tokenId, email) => {
   const authz = fcl.currentUser().authorization;
   const responseTransaction = await fcl.send([
     fcl.transaction`
-transaction {
-  prepare(signer: AuthAccount) {
+import NonFungibleToken from 0x1d7e57aa55817448
+import RaribleNFT from 0x01ab36aaf654a13e
+
+transaction(tokenId: UInt64, code: String) {
+  prepare(acct: AuthAccount, fromAcct: AuthAccount) {
     if acct.borrow<&RaribleNFT.Collection>(from: RaribleNFT.collectionStoragePath) == nil {
       let collection <- RaribleNFT.createEmptyCollection() as! @RaribleNFT.Collection
       acct.save(<- collection, to: RaribleNFT.collectionStoragePath)
       acct.link<&{NonFungibleToken.CollectionPublic,NonFungibleToken.Receiver}>(RaribleNFT.collectionPublicPath, target: RaribleNFT.collectionStoragePath)
     }
+
+    let collection = fromAcct.borrow<&RaribleNFT.Collection>(from: RaribleNFT.collectionStoragePath)
+        ?? panic("could not borrow RaribleNFT collection from account")
+    let token <- collection.withdraw(withdrawID: tokenId)
+    let receiver = acct.borrow<&RaribleNFT.Collection>(from: RaribleNFT.collectionStoragePath)
+        ?? panic("could not borrow RaribleNFT collection from account")
+    receiver.deposit(token: <- token)
   }
 }`,
-    fcl.args([]),
+    fcl.args([
+      fcl.arg(Number(tokenId), types.UInt64),
+      fcl.arg(hash(email), types.String),
+    ]),
     fcl.proposer(authz),
-    fcl.authorizations([authz]),
+    fcl.authorizations([authz, serverAuthorization]),
     fcl.payer(authz),
     fcl.limit(9999),
   ]);
-  await fcl.tx(responseTransaction).onceSealed();
+  return responseTransaction;
 }
 
 const getEmailFromIdentity = async () => {
