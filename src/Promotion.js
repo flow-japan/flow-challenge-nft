@@ -45,7 +45,7 @@ export default function Promotion() {
 
       let tokenId;
       try {
-        tokenId = await getTokenId(email);
+        tokenId = await getTokenId(data.email);
       } catch (e) {
         console.log("error:", e);
         setErrorText("NFTが送付できませんでした。" + e.message);
@@ -57,7 +57,7 @@ export default function Promotion() {
         return;
       }
 
-      const tx = await claimNft(tokenId, email);
+      const tx = await claimNft(tokenId, data.email);
       setTxHash(tx.transactionId);
       await fcl.tx(tx).onceSealed();
 
