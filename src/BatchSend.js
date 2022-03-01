@@ -148,7 +148,7 @@ transaction(amount: UFix64, toAddresses: [Address]) {
     }
 }`,
         fcl.args([
-            fcl.arg(amount.toString(), types.UFix64),
+            fcl.arg(Number(amount).toFixed(1).toString(), types.UFix64),
             fcl.arg(toAddresses, types.Array(types.Address)),
         ]),
         fcl.proposer(authz),
